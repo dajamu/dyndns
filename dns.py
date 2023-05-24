@@ -8,10 +8,15 @@ import sys
 
 from typing import Optional
 
-api_config = {
-    "base_url": None,
-    "private_key": None,
-    "public_key": None,
+conf_dict = {
+    "api": {
+        "base_url": None,
+        "private_key": None,
+        "public_key": None,
+    },
+    "general": {
+        "fqdn": None,
+    },
 }
 
 
@@ -40,9 +45,9 @@ def add_record(
 
 def api_get(endpoint: str) -> Optional[dict]:
     return requests.get(
-        f"{api_config['base_url']}{endpoint}",
+        f"{conf_dict['api']['base_url']}{endpoint}",
         headers={
-            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}"
+            "X-API-Key": f"{conf_dict['api']['public_key']}.{conf_dict['api']['private_key']}"
         },
     ).json()
 
@@ -51,10 +56,10 @@ def api_patch(endpoint: str, data) -> None:
     logging.debug(f"Data being sent: {data}")
 
     r = requests.patch(
-        f"{api_config['base_url']}{endpoint}",
+        f"{conf_dict['api']['base_url']}{endpoint}",
         json=data,
         headers={
-            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}",
+            "X-API-Key": f"{conf_dict['api']['public_key']}.{conf_dict['api']['private_key']}",
             "accept": "*/*",
             "Content-Type": "application/json",
         },
@@ -66,10 +71,10 @@ def api_patch(endpoint: str, data) -> None:
 
 def api_post(endpoint: str, data) -> None:
     r = requests.post(
-        f"{api_config['base_url']}{endpoint}",
+        f"{conf_dict['api']['base_url']}{endpoint}",
         json=data,
         headers={
-            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}",
+            "X-API-Key": f"{conf_dict['api']['public_key']}.{conf_dict['api']['private_key']}",
             "accept": "*/*",
             "Content-Type": "application/json",
         },
@@ -136,16 +141,19 @@ if __name__ == "__main__":
         format="%(levelname)s: %(message)s", level=logging.DEBUG
     )
 
-    conf = configparser.ConfigParser()
-    conf.read("dyndns.conf")
+    conf_file = configparser.ConfigParser()
+    conf_file.read("dyndns.conf")
 
-    for key in api_config:
-        logging.debug(f"Looking for value of '{key}' in config file.")
+    for section in conf_dict:
+        for key in conf_dict[section]:
+            logging.debug(f"Looking for value of '{key}' in config file.")
 
-        try:
-            api_config[key] = conf["api"][key]
-        except KeyError as e:
-            bail(1, f"Unable to determine value for '{key}' in config file.")
+            try:
+                conf_dict[section][key] = conf_file[section][key]
+            except KeyError as e:
+                bail(
+                    1, f"Unable to determine value for '{key}' in config file."
+                )
 
-    logging.debug(api_config)
+    logging.debug(conf_dict)
     # update_a_record("home.example.com", get_external_ip())
