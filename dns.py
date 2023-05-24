@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import configparser
 import logging
 import requests
 import socket
@@ -7,9 +8,11 @@ import sys
 
 from typing import Optional
 
-api_public = "XXX"
-api_private = "YYY"
-base_url = "https://api.hosting.ionos.com/dns"
+api_config = {
+    "base_url": None,
+    "private_key": None,
+    "public_key": None,
+}
 
 
 def add_record(
@@ -37,8 +40,10 @@ def add_record(
 
 def api_get(endpoint: str) -> Optional[dict]:
     return requests.get(
-        f"{base_url}{endpoint}",
-        headers={"X-API-Key": f"{api_public}.{api_private}"},
+        f"{api_config['base_url']}{endpoint}",
+        headers={
+            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}"
+        },
     ).json()
 
 
@@ -46,10 +51,10 @@ def api_patch(endpoint: str, data) -> None:
     logging.debug(f"Data being sent: {data}")
 
     r = requests.patch(
-        f"{base_url}{endpoint}",
+        f"{api_config['base_url']}{endpoint}",
         json=data,
         headers={
-            "X-API-Key": f"{api_public}.{api_private}",
+            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}",
             "accept": "*/*",
             "Content-Type": "application/json",
         },
@@ -61,10 +66,10 @@ def api_patch(endpoint: str, data) -> None:
 
 def api_post(endpoint: str, data) -> None:
     r = requests.post(
-        f"{base_url}{endpoint}",
+        f"{api_config['base_url']}{endpoint}",
         json=data,
         headers={
-            "X-API-Key": f"{api_public}.{api_private}",
+            "X-API-Key": f"{api_config['public_key']}.{api_config['private_key']}",
             "accept": "*/*",
             "Content-Type": "application/json",
         },
@@ -72,6 +77,17 @@ def api_post(endpoint: str, data) -> None:
 
     if r.status_code != 200:
         raise Exception(f"Error {r.status_code}: {r.json()}")
+
+
+def bail(rc: int = 0, msg: str = None) -> None:
+    if msg is not None:
+        if rc > 0:
+            sys.stderr.write("ERROR: ")
+
+        sys.stderr.write(f"{msg}\n")
+
+    logging.debug(f"Exiting with code: {rc}")
+    sys.exit(rc)
 
 
 def get_external_ip() -> str:
@@ -115,5 +131,21 @@ def update_a_record(fqdn: str, ipaddr: str, force: bool = False) -> bool:
     return True
 
 
-logging.basicConfig(format="%(levelname)s: %(message)s", level=logging.DEBUG)
-update_a_record("home.example.com", get_external_ip())
+if __name__ == "__main__":
+    logging.basicConfig(
+        format="%(levelname)s: %(message)s", level=logging.DEBUG
+    )
+
+    conf = configparser.ConfigParser()
+    conf.read("dyndns.conf")
+
+    for key in api_config:
+        logging.debug(f"Looking for value of '{key}' in config file.")
+
+        try:
+            api_config[key] = conf["api"][key]
+        except KeyError as e:
+            bail(1, f"Unable to determine value for '{key}' in config file.")
+
+    logging.debug(api_config)
+    # update_a_record("home.example.com", get_external_ip())
